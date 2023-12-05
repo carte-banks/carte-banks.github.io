@@ -1,0 +1,280 @@
+---
+title: "Swimming"
+output: 
+  flexdashboard::flex_dashboard:
+    theme:
+      version: 4
+      bootswatch: lux
+    orientation: columns
+    vertical_layout: fill
+    source_code: embed
+---
+
+<style>
+.chart-title { /* chart_title */
+    font-size: 16px;
+    }
+body{ /* Normal */ 
+      font-size: 14px; 
+      }
+</style>
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+```
+
+EDA
+===
+
+Column {data-width=500 .tabset}
+-----------------------------------------------------------------------
+
+### Introduction to the Data Set
+
+```{r glimpse}
+pacman::p_load(DT, knitr, plotly, tidyverse, countrycode)
+swimming <- read_csv("Swimming database.csv")
+names(swimming) <- make.names(names(swimming))
+#datatable(swimming, rownames=FALSE,
+#              colnames = c("Event Name", "Swim time", "Swim date", 
+#                           "Event description","Event description", 
+#                           "Team Code", "Team Name", "Athlete Full Name",
+#                           "Gender", "Athlete birth date", "Rank_Order",
+#                           "City", "Country Code", 
+#                           "Duration (hh:mm:ss:ff)"),
+#          options = list(columnDefs = list(list(className = 'dt-center', 
+#                                                targets = 1:13)),
+#                         pageLength = 5))
+```
+
+### Variables
+
+This is what all of the variables included in this dataset mean: 
+
+event_name: The name of the swimming event where the race occurred 
+
+swim_time: The time the athlete achieved to get onto the best 200 times
+
+swim_date: Date when the event occurred
+
+event_description: The event that the swimmers participated in
+
+team_code: The code of the country where the team is from
+
+team_name: The country the swimmer swims for
+
+athlete_full_name: The name of the athlete
+
+gender: The gender of the athlete
+
+athlete_birth_date: The date of birth of the athlete
+
+rank_order: The place in the top 200 times that the swimmer is at
+
+city: What city the swimmer is from
+
+country_code: What country the swimmer is from
+
+duration_hh_mm_ss_ff: The full time in hours, seconds, and milliseconds
+
+### Research Questions
+
+I am interested in looking at different events that swimmers participate in and whether age, gender, and nationality have anything to do with better or worse swimming times. 
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Goals For This Project
+
+For this project, it is important for me to understand the different countries and which are better at the sport of swimming. The majority of this project will be distinguishing which teams are more advanced with more swimmers who excelled at their sport. This project will also look at the ages of some of the top swimmers to see where there are discrepancies or big gaps between ages of the winners. I also want to take a look at some of the box plots that will help me visualize the amount of variety between the winning time out of some of the events of interest to me. Also, with living in the United States, I want to make sure I look at how we are doing in comparison to other countries in different events. 
+
+### Why This Data Set Interests Me
+
+I love swimming and swam for 9 years of my life with 4 years on a club team in elementary and middle school, 4 years in high school, and finally one year in college. This has been an integral part of my life with some of my closest friends coming from the team, which is one reason that I stuck with it for as long as I did. I was never amazing at the sport, but being able to hang out with some of my favorite people in my school it really made it all worth it. With looking into my dataset, I want to be able to investigate some of the events that I participated in in high school and how these athletes are a lot better than I was throughout my swimming career. 
+
+Team Analysis
+===
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### Count of Top 10 Countries
+
+```{r countries}
+count(swimming, Team.Name) %>% arrange(desc(n)) -> Team_Names
+Team_Names <- Team_Names[1:10,]
+ggplot(Team_Names, aes(y = Team.Name, x = n)) +
+  geom_bar(stat = "identity", fill = "darkgreen") + 
+  labs(x = "Count",
+       y = "Team Name",
+       title = "Amount of Top 200 Times per Team") -> p 
+
+ggplotly(p)
+```
+
+World View
+=====
+
+Column {data-width=500}
+--------
+
+### World View
+
+``` {r World}
+swimming$Team.Name <- recode(swimming$Team.Name,
+                   "Chinese Taipei" = "Taiwan",
+                   "Club" = "USA",
+                   "German Democratic Republic" = "Germany",
+                   "Great Britain" = "United Kingdom",
+                   "Hong Kong, China" = "China",
+                   "People's Republic of China" = "China",
+                   "ROC" = "Taiwan",
+                   "Republic of Korea" = "South Korea",
+                   "Russian Federation" = "Russia",
+                   "United States of America" = "USA")
+
+swim_counts <- swimming %>% 
+  group_by(Team.Name) %>% 
+  summarise(n = n())
+
+swim_counts <- swim_counts %>% 
+  mutate(continents = countrycode(Team.Name, "country.name", "continent"))
+
+unique(swimming$Team.Name) -> countries
+
+map_data("world", region = countries) -> World_Map
+
+swimming_map <- swim_counts %>% 
+  left_join(World_Map, by = c("Team.Name" = "region"))
+
+region.data <- swimming_map %>% 
+  group_by(Team.Name) %>% 
+  summarise(long = mean(long), lat = mean(lat))
+
+ggplot(swimming_map, aes(x = long, y = lat)) +
+  geom_polygon(aes(group = group, fill = n)) +
+  geom_text(aes(label = Team.Name), data = region.data, 
+            size = 5, hjust = 0.5, fontface = 'bold') 
+```
+
+
+Age of Top Swimmers
+==========
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### Age of Swimmer at Time of Event
+
+``` {r Age}
+library(date)
+swimming$Athlete.birth.date <- as.date(swimming$Athlete.birth.date)
+swimming <- mutate(swimming, 
+                   birth.year = format(as.Date(swimming$Athlete.birth.date, format="%d/%m/%Y"),"%Y"))
+swimming$Swim.date <- as.date(swimming$Swim.date)
+swimming <- mutate(swimming, 
+                   swim.year = format(as.Date(swimming$Swim.date, format = "%d/%m/%Y"),"%Y"))
+swimming$swim.year <- as.numeric(swimming$swim.year)
+swimming$birth.year <- as.numeric(swimming$birth.year)
+swimming <- mutate(swimming, 
+                   age.at.event = swim.year - birth.year)
+
+#ggplot(swimming, aes(x = age.at.event)) +
+#  geom_histogram(fill = "#007991") +
+#  labs(x = "Age at Time of Event") -> age
+#ggplotly(age)
+
+
+# Use plot_ly
+plot_ly(data = swimming, 
+        x = ~age.at.event, 
+        type = "histogram", 
+        marker = list(color = "#007991"),
+        name = "Age Distribution") %>%
+  layout(xaxis = list(title = "Age at Time of Event"))
+
+```
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### Typical Age of Fast Swimmer
+
+As shown in the histogram here, this is a pretty uniform distribution allowing for the mean to be 22 with a value of 633. There are still some outliers around 14, 33, and 34. Swimming is a very evenly distributed sport especially with the peak time in one's life that they will excell at it. 
+
+### Outliers and Significance
+
+``` {r outlier}
+fourteen <- filter(swimming, age.at.event == 14)
+fifteen <- filter(swimming, age.at.event == 15)
+```
+
+As seen in the histogram, there is a minimum age value of 14 which is completely insane when thinking these are the best 200 times out of the entire world. Some of the notable athletes form the United States are Katie Ledecky and Katie Grimes who both were able to achieve positions in the top 200 times at only 15 years old. Recently in 2022, David Popovici from Romania achieved the world record in the 100 meter freestyle at merely 18 years old. This was the inspiration for the dataset and the reason it was made in the first place, so it was important to highlight this event. 
+
+Important Events
+===
+
+Column {data-width=500 .tabset}
+-----------------------------------------------------------------------
+
+### Men's 100 Freestyle
+
+``` {r M Freestyle}
+M.Freestyle <- filter(swimming, Event.description == "Men 100 Freestyle LCM Male")
+M.Freestyle$Swim.time <- as.numeric(M.Freestyle$Swim.time)
+ggplot(M.Freestyle, aes(x = Swim.time)) +
+  geom_boxplot(fill = "#77AF9C")
+
+#ggplotly(mfree)
+```
+
+### Women's 100 Freestyle
+
+``` {r W Freestyle}
+W.Freestyle <- filter(swimming, Event.description == "Women 100 Freestyle LCM Female")
+W.Freestyle$Swim.time <- as.numeric(W.Freestyle$Swim.time)
+ggplot(W.Freestyle, aes(x = Swim.time)) +
+  geom_boxplot(fill = "#77AF9C") 
+```
+
+### Men's Age
+
+``` {r Men Age}
+ggplot(M.Freestyle, aes(x = Swim.time, y = age.at.event)) +
+  geom_point(color = "darkblue")
+```
+
+### Women's Age
+
+```{r W Age}
+ggplot(W.Freestyle, aes(x = Swim.time, y = age.at.event)) +
+  geom_point(color = "darkblue")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Conclusion
+===
+
+
+
+
+
+
+
+
+
+
+
